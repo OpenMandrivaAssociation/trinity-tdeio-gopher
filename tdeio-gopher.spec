@@ -1,69 +1,59 @@
-#
-# Please submit bugfixes or comments via http://www.trinitydesktop.org/
-#
+%bcond clang 1
 
 # TDE variables
 %define tde_epoch 2
 %if "%{?tde_version}" == ""
 %define tde_version 14.1.5
 %endif
+%define pkg_rel 2
+
 %define tde_pkg tdeio-gopher
 %define tde_prefix /opt/trinity
-%define tde_bindir %{tde_prefix}/bin
-%define tde_datadir %{tde_prefix}/share
-%define tde_docdir %{tde_datadir}/doc
-%define tde_includedir %{tde_prefix}/include
-%define tde_libdir %{tde_prefix}/%{_lib}
-%define tde_mandir %{tde_datadir}/man
-%define tde_tdeappdir %{tde_datadir}/applications/tde
-%define tde_tdedocdir %{tde_docdir}/tde
-%define tde_tdeincludedir %{tde_includedir}/tde
-%define tde_tdelibdir %{tde_libdir}/trinity
 
-%if 0%{?mdkversion}
+
 %undefine __brp_remove_la_files
 %define dont_remove_libtool_files 1
 %define _disable_rebuild_configure 1
-%endif
 
 # fixes error: Empty %files file …/debugsourcefiles.list
 %define _debugsource_template %{nil}
 
 %define tarball_name %{tde_pkg}-trinity
-%global toolchain %(readlink /usr/bin/cc)
 
 
 Name:		trinity-%{tde_pkg}
 Epoch:		%{tde_epoch}
 Version:	0.1.4
-Release:	%{?tde_version}_%{?!preversion:1}%{?preversion:0_%{preversion}}%{?dist}
+Release:	%{?tde_version}_%{?!preversion:%{pkg_rel}}%{?preversion:0_%{preversion}}%{?dist}
 Summary:	tdeio-slave for the gopher protocol
 Group:		Productivity/Networking/Ftp/Clients
 URL:		http://www.trinitydesktop.org/
 
-%if 0%{?suse_version}
-License:	GPL-2.0+
-%else
 License:	GPLv2+
-%endif
 
-#Vendor:		Trinity Desktop
-#Packager:	Francois Andriot <francois.andriot@free.fr>
-
-Prefix:		%{tde_prefix}
 
 Source0:		https://mirror.ppa.trinitydesktop.org/trinity/releases/R%{tde_version}/main/applications/tdeio/%{tarball_name}-%{tde_version}%{?preversion:~%{preversion}}.tar.xz
 
-BuildRequires:  cmake make
+BuildSystem:    cmake
+
+BuildOption:    -DCMAKE_BUILD_TYPE="RelWithDebInfo"
+BuildOption:    -DCMAKE_INSTALL_PREFIX=%{tde_prefix}
+BuildOption:    -DSHARE_INSTALL_PREFIX=%{tde_prefix}/share
+BuildOption:    -DWITH_ALL_OPTIONS=ON
+BuildOption:    -DBUILD_ALL=ON
+BuildOption:    -DBUILD_DOC=ON
+BuildOption:    -DBUILD_TRANSLATIONS=ON
+BuildOption:    -DWITH_GCC_VISIBILITY=%{!?with_clang:ON}%{?with_clang:OFF}
+
 BuildRequires:	trinity-tdelibs-devel >= %{tde_version}
 BuildRequires:	trinity-tdebase-devel >= %{tde_version}
 BuildRequires:	desktop-file-utils
 BuildRequires:	gettext
 
 BuildRequires:	trinity-tde-cmake >= %{tde_version}
-%if "%{?toolchain}" != "clang"
-BuildRequires:	gcc-c++
-%endif
+
+%{!?with_clang:BuildRequires:	gcc-c++}
+
 BuildRequires:	pkgconfig
 BuildRequires:	fdupes
 
@@ -73,15 +63,6 @@ BuildRequires:  pkgconfig(libacl)
 # IDN support
 BuildRequires:	pkgconfig(libidn)
 
-# SUSE desktop files utility
-%if 0%{?suse_version}
-BuildRequires:	update-desktop-files
-%endif
-
-%if 0%{?opensuse_bs} && 0%{?suse_version}
-# for xdg-menu script
-BuildRequires:	brp-check-trinity
-%endif
 
 BuildRequires:  pkgconfig(xrender)
 BuildRequires:  pkgconfig(x11)
@@ -95,86 +76,43 @@ to Konqueror and other TDE applications.
 
 This enables you to perform gopher searches in Konqueror.
 
-##########
 
-%if 0%{?suse_version} && 0%{?opensuse_bs} == 0
-%debug_package
-%endif
-
-##########
-
-
-%prep
-%autosetup -n %{tarball_name}-%{tde_version}%{?preversion:~%{preversion}}
-
-
-%build
+%conf -p
 unset QTDIR QTINC QTLIB
-export PATH="%{tde_bindir}:${PATH}"
-export PKG_CONFIG_PATH="%{tde_libdir}/pkgconfig"
-
-if ! rpm -E %%cmake|grep -e 'cd build\|cd ${CMAKE_BUILD_DIR:-build}'; then
-  %__mkdir_p build
-  cd build
-fi
-
-%cmake \
-  -DCMAKE_BUILD_TYPE="RelWithDebInfo" \
-  -DCMAKE_C_FLAGS="${RPM_OPT_FLAGS}" \
-  -DCMAKE_CXX_FLAGS="${RPM_OPT_FLAGS}" \
-  -DCMAKE_SKIP_RPATH=OFF \
-  -DCMAKE_SKIP_INSTALL_RPATH=OFF \
-  -DCMAKE_INSTALL_RPATH="%{tde_libdir}" \
-  -DCMAKE_VERBOSE_MAKEFILE=ON \
-  -DWITH_GCC_VISIBILITY=OFF \
-  \
-  -DCMAKE_INSTALL_PREFIX="%{tde_prefix}" \
-  -DSHARE_INSTALL_PREFIX="%{tde_datadir}" \
-  -DLIB_INSTALL_DIR="%{tde_libdir}" \
-  \
-  -DWITH_ALL_OPTIONS=ON \
-  -DWITH_GCC_VISIBILITY=ON \
-  \
-  -DBUILD_ALL=ON \
-  -DBUILD_DOC=ON \
-  -DBUILD_TRANSLATIONS=ON \
-  ..
-
-%__make %{?_smp_mflags} || %__make
+export PATH="%{tde_prefix}/bin:${PATH}"
+export PKG_CONFIG_PATH="%{tde_prefix}/%{_lib}/pkgconfig"
 
 
-%install
-%__make install DESTDIR=%{buildroot} -C build
-
+%install -a
 %find_lang tdeio_gopher
 
 
 %files -f tdeio_gopher.lang
 %defattr(-,root,root,-)
 %doc ChangeLog COPYING FAQ README VERSION
-%{tde_tdelibdir}/tdeio_gopher.la
-%{tde_tdelibdir}/tdeio_gopher.so
-%{tde_datadir}/services/gopher.protocol
-%lang(ca) %{tde_tdedocdir}/HTML/ca/tdeioslave/
-%lang(da) %{tde_tdedocdir}/HTML/da/tdeioslave/
-%lang(de) %{tde_tdedocdir}/HTML/de/tdeioslave/
-%lang(en) %{tde_tdedocdir}/HTML/en/tdeioslave/
-%lang(en_GB) %{tde_tdedocdir}/HTML/en_GB/tdeioslave/
-%lang(es) %{tde_tdedocdir}/HTML/es/tdeioslave/
-%lang(et) %{tde_tdedocdir}/HTML/et/tdeioslave/
-%lang(fr) %{tde_tdedocdir}/HTML/fr/tdeioslave/
-%lang(gl) %{tde_tdedocdir}/HTML/gl/tdeioslave/
-%lang(hu) %{tde_tdedocdir}/HTML/hu/tdeioslave/
-%lang(it) %{tde_tdedocdir}/HTML/it/tdeioslave/
-%lang(nl) %{tde_tdedocdir}/HTML/nl/tdeioslave/
-%lang(pl) %{tde_tdedocdir}/HTML/pl/tdeioslave/
-%lang(pt) %{tde_tdedocdir}/HTML/pt/tdeioslave/
-%lang(pt_BR) %{tde_tdedocdir}/HTML/pt_BR/tdeioslave/
-%lang(ro) %{tde_tdedocdir}/HTML/ro/tdeioslave/
-%lang(ru) %{tde_tdedocdir}/HTML/ru/tdeioslave/
-%lang(sk) %{tde_tdedocdir}/HTML/sk/tdeioslave/
-%lang(sr) %{tde_tdedocdir}/HTML/sr/tdeioslave/
-%lang(sr@Latn) %{tde_tdedocdir}/HTML/sr@Latn/tdeioslave/
-%lang(sv) %{tde_tdedocdir}/HTML/sv/tdeioslave/
-%lang(uk) %{tde_tdedocdir}/HTML/uk/tdeioslave/
+%{tde_prefix}/%{_lib}/trinity/tdeio_gopher.la
+%{tde_prefix}/%{_lib}/trinity/tdeio_gopher.so
+%{tde_prefix}/share/services/gopher.protocol
+%lang(ca) %{tde_prefix}/share/doc/tde/HTML/ca/tdeioslave/
+%lang(da) %{tde_prefix}/share/doc/tde/HTML/da/tdeioslave/
+%lang(de) %{tde_prefix}/share/doc/tde/HTML/de/tdeioslave/
+%lang(en) %{tde_prefix}/share/doc/tde/HTML/en/tdeioslave/
+%lang(en_GB) %{tde_prefix}/share/doc/tde/HTML/en_GB/tdeioslave/
+%lang(es) %{tde_prefix}/share/doc/tde/HTML/es/tdeioslave/
+%lang(et) %{tde_prefix}/share/doc/tde/HTML/et/tdeioslave/
+%lang(fr) %{tde_prefix}/share/doc/tde/HTML/fr/tdeioslave/
+%lang(gl) %{tde_prefix}/share/doc/tde/HTML/gl/tdeioslave/
+%lang(hu) %{tde_prefix}/share/doc/tde/HTML/hu/tdeioslave/
+%lang(it) %{tde_prefix}/share/doc/tde/HTML/it/tdeioslave/
+%lang(nl) %{tde_prefix}/share/doc/tde/HTML/nl/tdeioslave/
+%lang(pl) %{tde_prefix}/share/doc/tde/HTML/pl/tdeioslave/
+%lang(pt) %{tde_prefix}/share/doc/tde/HTML/pt/tdeioslave/
+%lang(pt_BR) %{tde_prefix}/share/doc/tde/HTML/pt_BR/tdeioslave/
+%lang(ro) %{tde_prefix}/share/doc/tde/HTML/ro/tdeioslave/
+%lang(ru) %{tde_prefix}/share/doc/tde/HTML/ru/tdeioslave/
+%lang(sk) %{tde_prefix}/share/doc/tde/HTML/sk/tdeioslave/
+%lang(sr) %{tde_prefix}/share/doc/tde/HTML/sr/tdeioslave/
+%lang(sr@Latn) %{tde_prefix}/share/doc/tde/HTML/sr@Latn/tdeioslave/
+%lang(sv) %{tde_prefix}/share/doc/tde/HTML/sv/tdeioslave/
+%lang(uk) %{tde_prefix}/share/doc/tde/HTML/uk/tdeioslave/
 
